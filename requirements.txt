@@ -1,0 +1,4 @@
+MoviePy==1.0.3
+Pillow==10.2.0
+tqdm==4.66.1
+click==8.1.7
