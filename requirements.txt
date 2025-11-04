@@ -1,4 +1,7 @@
-MoviePy==1.0.3
-Pillow==10.2.0
-tqdm==4.66.1
-click==8.1.7
+moviepy>=2.0.0rc0
+numpy>=2.1
+Pillow>=11.0.0
+imageio>=2.34
+imageio-ffmpeg>=0.4.9
+tqdm>=4.66
+click>=8.1

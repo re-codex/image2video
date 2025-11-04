@@ -1,0 +1,25 @@
+# виртуалки
+.venv/
+.env/
+
+# байткод
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.idea/
+.vscode/
+
+# система
+.DS_Store
+Thumbs.db
+
+# тестовые/кэши
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# артефакты вывода
+output/
