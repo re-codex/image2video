@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Iterable
 
 import click
 from tqdm import tqdm
@@ -24,8 +24,8 @@ def setup_logging(verbose: bool) -> None:
     )
 
 
-def collect_images(args: Iterable[str]) -> List[str]:
-    paths: List[str] = []
+def collect_images(args: Iterable[str]) -> list[str]:
+    paths: list[str] = []
     for item in args:
         p = Path(item)
         if p.is_dir():
@@ -50,7 +50,7 @@ def collect_images(args: Iterable[str]) -> List[str]:
     return uniq
 
 
-def validate_audio(path: Optional[str]) -> Optional[str]:
+def validate_audio(path: str | None) -> str | None:
     if not path:
         return None
     p = Path(path)
@@ -97,7 +97,46 @@ def make_progress_cb():
               help="Плавные переходы между кадрами")
 @click.option("--info", is_flag=True, help="Вывести инфо о входных данных")
 @click.option("--verbose", "-v", is_flag=True, help="Подробный лог")
-def main(images, audio, out, sec_per, fps, width, height, bg, audio_adjust, transitions, info, verbose):
+@click.option(
+    "--total-duration", "--total",
+    type=click.FloatRange(min=0.1),
+    default=None,
+    show_default=False,
+    help="Общая длительность ролика в секундах. "
+         "Если указано, имеет приоритет над длиной кадра (--sec-per).",
+)
+@click.option(
+    "--fit-mode",
+    type=click.Choice(["fit", "cover"], case_sensitive=False),
+    default="cover",
+    show_default=True,
+    help="Режим вписывания: fit — с полями, cover — с обрезкой"
+)
+@click.option(
+    "--fancy-bg/--no-fancy-bg",
+    default=False,
+    show_default=True,
+    help="Использовать размытый фон из самой картинки (только для fit-mode)",
+)
+
+
+def main(
+    images,
+    audio,
+    out,
+    sec_per,
+    total_duration,
+    fps,
+    width,
+    height,
+    bg,
+    fit_mode,
+    fancy_bg,
+    audio_adjust,
+    transitions,
+    info,
+    verbose,
+):
     """Vertical Video Maker — CLI."""
     setup_logging(verbose)
 
@@ -110,12 +149,22 @@ def main(images, audio, out, sec_per, fps, width, height, bg, audio_adjust, tran
     if (width, height) != (1080, 1920):
         click.echo("⚠ Рекомендовано 1080x1920 для вертикальных роликов.")
 
+    dur_text = f"{total_duration:.2f}" if total_duration is not None else "—"
+    sec_text = f"{sec_per:.2f}"
+
     if info:
         click.echo(f"🖼  Изображений: {len(imgs)}")
         click.echo(f"   Примеры: {', '.join(Path(p).name for p in imgs[:3])}")
         if audio_path:
             click.echo(f"🎵 Аудио: {Path(audio_path).name}")
-        click.echo(f"🎞  FPS: {fps} | ⏱ кадр: {sec_per}s | фон: {bg}")
+        click.echo(f"🎞  FPS: {int(fps)} | 🎨 фон: {bg} | режим: {fit_mode}"
+                    f" | fancy_bg: {'on' if fancy_bg else 'off'}")
+
+        if total_duration is not None:
+            click.echo(f"⏱ Общая длительность: {dur_text}s (sec_per будет пересчитан)")
+        else:
+            click.echo(f"⏱ Длительность кадра: {sec_text}s")
+
         click.echo("")
 
     # грубая оценка числа кадров для прогресса (без учёта переходов)
@@ -130,9 +179,12 @@ def main(images, audio, out, sec_per, fps, width, height, bg, audio_adjust, tran
         fps=int(fps),
         bg=bg.lower(),
         audio=audio_path,
-        transitions=bool(transitions),
+        transitions=transitions,
         audio_adjust=audio_adjust.lower(),
         progress_cb=progress_cb,
+        total_duration=total_duration,
+        fit_mode=fit_mode.lower(),
+        fancy_bg=fancy_bg,
     )
 
     if not Path(result).exists():

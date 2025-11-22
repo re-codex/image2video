@@ -1,9 +1,8 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Optional
 from moviepy import AudioFileClip, concatenate_audioclips
 
-def prepare_audio(path: Optional[str], target_duration: float, mode: str = "trim"):
+def prepare_audio(path: str | None, target_duration: float, mode: str = "trim"):
     """
     Вернёт AudioFileClip ровно нужной длительности.
     mode: "trim" — обрезать; "loop" — зациклить до длины.
