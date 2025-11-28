@@ -10,39 +10,13 @@ from moviepy.video.fx import CrossFadeIn
 from .image import fit_to_canvas
 from .audio import prepare_audio
 from .config import WIDTH, HEIGHT, BG, IMAGE_EXTS
+from .duration import fade_for, sec_per_for_total
 
 from PIL import Image, ImageOps, ImageFilter
 
 PathLike = str | Path
 CropOffsets = dict[str, tuple[float, float]]
 ProgressCB = Callable[[int, int], None] | None
-
-FADE_MAX = 0.7
-FADE_K = 0.3  # fade = min(sec_per*0.3, 0.7)
-FADE_SWITCH = FADE_MAX / FADE_K  # 2.333333...
-
-def fade_for(sec_per: float) -> float:
-    return min(sec_per * FADE_K, FADE_MAX)
-
-def sec_per_for_total(n: int, total: float) -> float:
-    """
-    Подбирает sec_per так, чтобы итоговая длительность после crossfade-overlap была == total.
-    """
-    if n <= 0:
-        raise ValueError("n must be > 0")
-    if n == 1:
-        return total
-
-    # Кейс A: sec_per <= 2.333.. => fade = 0.3*sec_per
-    # total = n*sec_per - (n-1)*0.3*sec_per = sec_per*(0.7*n + 0.3)
-    sec_a = total / (0.7 * n + 0.3)
-    if sec_a <= FADE_SWITCH:
-        return sec_a
-
-    # Кейс B: sec_per > 2.333.. => fade = 0.7
-    # total = n*sec_per - (n-1)*0.7 => sec_per = (total + (n-1)*0.7)/n
-    sec_b = (total + (n - 1) * FADE_MAX) / n
-    return sec_b
 
 def _collect_images(images: PathLike | Iterable[PathLike]) -> list[Path]:
     """Собрать все картинки из аргументов: файлы/папки."""
@@ -120,15 +94,13 @@ def build_video(
 
     # --- вычисление sec_per с учётом total_duration ---
     if total_duration is not None:
-        if total_duration <= 0:
-            raise ValueError("total_duration должна быть > 0")
         if transitions and n > 1:
-            sec_per = sec_per_for_total(n, float(total_duration))
+            sec_per = sec_per_for_total(n, float(total_duration), transitions=True)
         else:
             sec_per = float(total_duration) / n
     else:
-        if sec_per <= 0:
-            raise ValueError("sec_per должна быть > 0, если total_duration не задана")
+        # sec_per уже валиден
+        pass
 
     sec_per = float(sec_per)
     W, H = size
@@ -144,7 +116,7 @@ def build_video(
 
     # Состояния пачки
     batch_remaining = 0
-    current_move_type = "zoom_in"
+    current_move_type = "zoom"
 
     # 0 = Первичное направление (Left / Top / ZoomIn)
     # 1 = Вторичное направление (Right / Bottom / ZoomOut)
@@ -170,8 +142,8 @@ def build_video(
         batch_remaining -= 1
 
         # --- Подготовка изображения ---
-        im_pil = Image.open(p).convert("RGB")
-        im_pil = ImageOps.exif_transpose(im_pil)
+        with Image.open(p) as im:
+            im_pil = ImageOps.exif_transpose(im).convert("RGB")
 
         if motion == "kenburns":
             # == Вспомогательная функция плавности (ease-in-out) ==

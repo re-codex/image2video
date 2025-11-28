@@ -4,15 +4,15 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import sv_ttk
-from typing import Dict, Tuple
 from datetime import datetime
 
-from .pipeline import build_video, _collect_images, fade_for, sec_per_for_total
+from .pipeline import build_video, _collect_images
 from .config import WIDTH, HEIGHT, FPS, SEC_PER, BG  # просто подтягиваем дефолты
 from PIL import Image, ImageTk
 from .image import fit_to_canvas
+from .duration import sec_per_for_total, total_for
 
-CropOffsets = Dict[str, Tuple[float, float]]   # путь → (ox, oy) в [-1, 1]
+CropOffsets = dict[str, tuple[float, float]]   # путь → (ox, oy) в [-1, 1]
 
 class App(tk.Tk):
     MIN_LEFT_W = 640
@@ -427,7 +427,7 @@ class App(tk.Tk):
                 self.after(0, lambda: setattr(self, "_geo_lock", False))
 
         # 3. Применяем размеры к контейнеру и canvas
-        if self.frm_prev_container.cget("width") != canvas_w:
+        if int(self.frm_prev_container.cget("width") or 0) != canvas_w:
             self.frm_prev_container.configure(width=canvas_w, height=canvas_h)
 
         self.preview_canvas.place(
@@ -832,21 +832,13 @@ class App(tk.Tk):
                 sec_per = float(self.sec_per.get() or 0.0)
                 if sec_per <= 0:
                     return
-
-                t = self._transition_sec(sec_per)
-                total = sec_per * n - t * (n - 1)
+                total = total_for(n, sec_per, transitions=bool(self.transitions.get()))
                 self.total_duration.set(round(max(0.0, total), 2))
-
             else:
                 total = float(self.total_duration.get() or 0.0)
                 if total <= 0:
                     return
-
-                if self.transitions.get() and n > 1:
-                    sec_per = sec_per_for_total(n, total)
-                else:
-                    sec_per = total / n
-
+                sec_per = sec_per_for_total(n, total, transitions=bool(self.transitions.get()))
                 self.sec_per.set(round(sec_per, 3))
 
         finally:
@@ -1010,9 +1002,6 @@ class App(tk.Tk):
             else:
                 self.btn_open_dir.configure(state="normal")
                 self.btn_open_dir.state(["!disabled"])
-
-    def _transition_sec(self, sec_per: float) -> float:
-        return fade_for(sec_per) if self.transitions.get() else 0.0
 
 def main():
     App().mainloop()
